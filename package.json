@@ -1,0 +1,19 @@
+{
+    "name": "com.lonefire.magic-utilities",
+    "displayName": "Magic Utilities",
+    "version": "1.0.0",
+    "unity": "6000.0",
+    "licensesUrl": "See LICENSE.md",
+    "author": {
+        "name": "Jean-Baptiste Leonelli",
+        "email": "lonefiregames@gmail.com",
+        "url": "https://jeanbaptiste-leonelli.fr/"
+    },
+    "description": "Utilities scripts",
+    "dependencies": {
+    },
+    "keywords": [
+        "Utility",
+        "Tool"
+    ]
+}
