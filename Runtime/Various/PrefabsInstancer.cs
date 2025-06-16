@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+[DefaultExecutionOrder(-100)]
 public class PrefabsInstancer : MonoBehaviour
 {
     public static bool Init;
