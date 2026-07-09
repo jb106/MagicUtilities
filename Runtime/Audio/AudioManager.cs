@@ -24,6 +24,8 @@ public class AudioPoolItem
 
 public class AudioManager : MonoBehaviour
 {
+    public static AudioManager Instance = null;
+    
     public AudioMixer AudioMixer => _mixer;
 
     [SerializeField] AudioMixer _mixer = null;
@@ -39,7 +41,14 @@ public class AudioManager : MonoBehaviour
 
     void Awake()
     {
+        if (Instance != null)
+        {
+            Destroy(gameObject);
+            return;
+        }
+        
         DontDestroyOnLoad(gameObject);
+        Instance = this;
 
         if (!_mixer) return;
 
@@ -54,7 +63,6 @@ public class AudioManager : MonoBehaviour
             _tracks[group.name] = trackInfo;
         }
 
-        //Generer les emptys de sons
         for (int x = 0; x < _maxSounds; x++)
         {
             GameObject go = new GameObject("Audio Pool Item");
@@ -310,6 +318,8 @@ public class AudioManager : MonoBehaviour
 
     private bool PositionIsVisible(Vector3 p)
     {
+        if (Camera.main == null) return true;
+        
         Vector3 view = Camera.main.WorldToViewportPoint(p);
 
         if(view.x > 0f && view.x < 1f)

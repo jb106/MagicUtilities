@@ -5,6 +5,21 @@ using Sirenix.OdinInspector;
 [CreateAssetMenu(menuName = "ScriptableObjects/Audio/AudioData")]
 public class AudioData : ScriptableObject
 {
+    [System.Serializable]
+    public class AudioClipEntry
+    {
+        [HorizontalGroup("row", 20f), HideLabel, ToggleLeft]
+        [Tooltip("Enable / disable this clip")]
+        public bool enabled = true;
+
+        [HorizontalGroup("row"), HideLabel, EnableIf("enabled")]
+        public AudioClip clip;
+
+        [HorizontalGroup("row", 120f), HideLabel, EnableIf("enabled")]
+        [PropertyRange(0f, 1f), Tooltip("Relative weight (chance to be picked)")]
+        public float weight = 1f;
+    }
+
     #if UNITY_EDITOR
         private AudioSource _previewSource;
         private float _previewPeakDb = -80f;
@@ -15,7 +30,8 @@ public class AudioData : ScriptableObject
 
         [BoxGroup("Preview")]
         [HorizontalGroup("Preview/Buttons")]
-        [Button("▶ Play", ButtonSizes.Large), GUIColor(0.4f, 0.85f, 1f)]
+        [PropertyOrder(-10)]
+        [Button("▶  Play", ButtonSizes.Large), GUIColor(0.4f, 0.85f, 1f)]
         private void EditorPreviewPlay()
         {
             EditorPreviewStop();
@@ -45,7 +61,8 @@ public class AudioData : ScriptableObject
         }
 
         [HorizontalGroup("Preview/Buttons")]
-        [Button("■ Stop", ButtonSizes.Large), GUIColor(1f, 0.5f, 0.5f)]
+        [PropertyOrder(-10)]
+        [Button("■  Stop", ButtonSizes.Large), GUIColor(1f, 0.5f, 0.5f)]
         private void EditorPreviewStop()
         {
             UnityEditor.EditorApplication.update -= EditorPreviewTick;
@@ -79,7 +96,9 @@ public class AudioData : ScriptableObject
                     w.Repaint();
         }
 
-        [OnInspectorGUI, PropertyOrder(100)]
+        [BoxGroup("Preview")]
+        [PropertyOrder(-9)]
+        [OnInspectorGUI]
         private void EditorPreviewMeters()
         {
             if (_previewSource != null && _previewSource.clip != null && _previewSource.isPlaying)
@@ -93,20 +112,48 @@ public class AudioData : ScriptableObject
                 _previewPeakDb = Mathf.Max(_previewPeakDb, _previewDb);
             }
 
-            if (!_previewHasData) return;
+            if (!_previewHasData)
+            {
+                UnityEditor.EditorGUILayout.LabelField("Press  ▶ Play  to preview the sound.",
+                    UnityEditor.EditorStyles.centeredGreyMiniLabel);
+                return;
+            }
 
-            Rect r1 = UnityEditor.EditorGUILayout.GetControlRect(false, 18f);
-            UnityEditor.EditorGUI.ProgressBar(r1, _previewProgress,
-                $"{_previewPos:0.00}s / {_previewLen:0.00}s   (pitch {_previewPitch:0.00})");
+            Rect r1 = UnityEditor.EditorGUILayout.GetControlRect(false, 20f);
+            DrawBar(r1, _previewProgress, new Color(0.30f, 0.65f, 1f),
+                $"{_previewPos:0.00}s / {_previewLen:0.00}s      pitch ×{_previewPitch:0.00}");
+
+            UnityEditor.EditorGUILayout.Space(3f);
 
             float norm     = Mathf.InverseLerp(-60f, 0f, _previewDb);
             float peakNorm = Mathf.InverseLerp(-60f, 0f, _previewPeakDb);
 
-            Rect r2 = UnityEditor.EditorGUILayout.GetControlRect(false, 16f);
-            UnityEditor.EditorGUI.ProgressBar(r2, norm, $"{_previewDb:0.0} dB   (peak {_previewPeakDb:0.0})");
+            Rect r2 = UnityEditor.EditorGUILayout.GetControlRect(false, 18f);
+            DrawBar(r2, norm, DbColor(norm),
+                $"{_previewDb:0.0} dB       peak {_previewPeakDb:0.0} dB");
 
             Rect peakMark = new Rect(r2.x + r2.width * peakNorm - 1f, r2.y, 2f, r2.height);
-            UnityEditor.EditorGUI.DrawRect(peakMark, Color.red);
+            UnityEditor.EditorGUI.DrawRect(peakMark, Color.white);
+        }
+
+        private static void DrawBar(Rect rect, float value01, Color fill, string label)
+        {
+            value01 = Mathf.Clamp01(value01);
+            UnityEditor.EditorGUI.DrawRect(rect, new Color(0f, 0f, 0f, 0.35f));
+            Rect fillRect = new Rect(rect.x, rect.y, rect.width * value01, rect.height);
+            UnityEditor.EditorGUI.DrawRect(fillRect, fill);
+
+            GUIStyle style = new GUIStyle(UnityEditor.EditorStyles.miniBoldLabel)
+            { alignment = TextAnchor.MiddleCenter };
+            style.normal.textColor = Color.white;
+            UnityEditor.EditorGUI.LabelField(rect, label, style);
+        }
+
+        private static Color DbColor(float norm)
+        {
+            if (norm < 0.60f) return new Color(0.30f, 0.80f, 0.35f);
+            if (norm < 0.85f) return new Color(0.95f, 0.75f, 0.20f);
+            return new Color(0.95f, 0.30f, 0.25f);
         }
 
         private float GetPreviewDb()
@@ -119,28 +166,72 @@ public class AudioData : ScriptableObject
             return rms > 0f ? 20f * Mathf.Log10(rms) : -80f;
         }
     #endif
-        
-    [InfoBox("$_description")]
 
-    [SerializeField] private List<AudioClip> _clips = new List<AudioClip>();
+    // ─────────────────────────────  Clips  ─────────────────────────────
+    [PropertyOrder(0)]
+    [Title("Clips", "A clip is picked at random on each play", TitleAlignments.Left)]
+    [InfoBox("$_description", InfoMessageType.None, "@!string.IsNullOrEmpty(_description)")]
+    [SerializeField, HideLabel]
+    [ListDrawerSettings(ShowFoldout = false, DraggableItems = true)]
+    private List<AudioClipEntry> _clips = new List<AudioClipEntry>();
 
-    [SerializeField, Range(0f, 2.5f)] float _delay;
-    [SerializeField] string _audioGroup = string.Empty;
+    [PropertyOrder(1)]
+    [SerializeField, Min(0)]
+    [LabelText("Avoid Last N Played"), SuffixLabel("clips", true)]
+    private int _avoidRepeatingLast = 1;
 
-    [SerializeField, BoxGroup("Options")] private bool _onlyPlayIfVisible;
-    [SerializeField, BoxGroup("Options")] private bool _hasCooldown;
-    [SerializeField, ShowIf("_hasCooldown"), BoxGroup("Options")] float _cooldown = 0f;
-    [SerializeField, BoxGroup("Options"), Min(0)] private int _avoidRepeatingLast = 1;
+    // ─────────────────────────────  Volume  ────────────────────────────
+    [PropertyOrder(10)]
+    [Title("Volume")]
+    [SerializeField, ToggleLeft, LabelText("Randomize (range)")]
+    private bool _useVolumeRange;
 
-    [SerializeField, BoxGroup("Options")] private bool _useVolumeRange;
-    [SerializeField, HideIf("_useVolumeRange"), Range(0.0f, 1.0f), BoxGroup("Options")] float _volume = 1.0f;
-    [SerializeField, ShowIf("_useVolumeRange"), MinMaxSlider(0.0f, 1.0f), BoxGroup("Options")] private Vector2 _volumeRange;
+    [PropertyOrder(11)]
+    [SerializeField, HideIf("_useVolumeRange"), HideLabel, Range(0.0f, 1.0f)]
+    float _volume = 1.0f;
 
-    [SerializeField, BoxGroup("Options")] private bool _usePitchRange;
-    [SerializeField, HideIf("_usePitchRange"), BoxGroup("Options"), Range(0.75f, 1.25f)] private float _pitch = 1.0f;
-    [SerializeField, MinMaxSlider(0.75f, 1.25f), ShowIf("_usePitchRange"), BoxGroup("Options")] Vector2 _pitchRange = new Vector2(1.0f, 1.0f);
+    [PropertyOrder(11)]
+    [SerializeField, ShowIf("_useVolumeRange"), HideLabel, MinMaxSlider(0.0f, 1.0f, true)]
+    private Vector2 _volumeRange;
 
+    // ─────────────────────────────  Pitch  ─────────────────────────────
+    [PropertyOrder(12)]
+    [Title("Pitch")]
+    [SerializeField, ToggleLeft, LabelText("Randomize (range)")]
+    private bool _usePitchRange;
 
+    [PropertyOrder(13)]
+    [SerializeField, HideIf("_usePitchRange"), HideLabel, Range(0.75f, 1.25f)]
+    private float _pitch = 1.0f;
+
+    [PropertyOrder(13)]
+    [SerializeField, ShowIf("_usePitchRange"), HideLabel, MinMaxSlider(0.75f, 1.25f, true)]
+    Vector2 _pitchRange = new Vector2(1.0f, 1.0f);
+
+    // ───────────────────────────  Playback  ────────────────────────────
+    [PropertyOrder(20)]
+    [Title("Playback")]
+    [SerializeField, Range(0f, 2.5f), SuffixLabel("s", true)]
+    float _delay;
+
+    [PropertyOrder(21)]
+    [SerializeField, LabelText("Audio Group")]
+    string _audioGroup = string.Empty;
+
+    [PropertyOrder(22)]
+    [SerializeField, ToggleLeft, LabelText("Only Play If Visible")]
+    private bool _onlyPlayIfVisible;
+
+    [PropertyOrder(23)]
+    [SerializeField, ToggleLeft, LabelText("Cooldown")]
+    private bool _hasCooldown;
+
+    [PropertyOrder(24)]
+    [SerializeField, ShowIf("_hasCooldown"), Indent, HideLabel, SuffixLabel("s", true)]
+    float _cooldown = 0f;
+
+    // ───────────────────────────  Advanced  ────────────────────────────
+    [PropertyOrder(30)]
     [SerializeField, FoldoutGroup("Advanced")][Range(0.0f, 1.0f)] float _spatialBlend = 0f;
     [SerializeField, FoldoutGroup("Advanced")][Range(0, 256)] int _priority = 128;
     [SerializeField, FoldoutGroup("Advanced"), TextArea] string _description;
@@ -181,13 +272,11 @@ public class AudioData : ScriptableObject
     {
         get
         {
-            if (_clips.Count == 0) return false;
+            foreach (AudioClipEntry e in _clips)
+                if (e != null && e.enabled && e.clip != null)
+                    return true;
 
-            foreach (AudioClip clip in _clips)
-                if (clip == null)
-                    return false;
-
-            return true;
+            return false;
         }
     }
 
@@ -195,26 +284,39 @@ public class AudioData : ScriptableObject
     {
         get
         {
-            if (_clips.Count == 0) return null;
-            if (_clips.Count == 1) return _clips[0];
+            List<AudioClipEntry> playable = new List<AudioClipEntry>(_clips.Count);
+            foreach (AudioClipEntry e in _clips)
+                if (e != null && e.enabled && e.clip != null && e.weight > 0f)
+                    playable.Add(e);
 
-            int avoid = Mathf.Clamp(_avoidRepeatingLast, 0, _clips.Count - 1);
+            if (playable.Count == 0) return null;
+            if (playable.Count == 1) return playable[0].clip;
 
-            List<AudioClip> candidates = new List<AudioClip>(_clips.Count);
-            foreach (AudioClip c in _clips)
+            int avoid = Mathf.Clamp(_avoidRepeatingLast, 0, playable.Count - 1);
+
+            List<AudioClipEntry> candidates = new List<AudioClipEntry>(playable.Count);
+            float totalWeight = 0f;
+            foreach (AudioClipEntry e in playable)
             {
-                if (c == null) continue;
-                if (avoid > 0 && _history.Contains(c)) continue;
-                candidates.Add(c);
+                if (avoid > 0 && _history.Contains(e.clip)) continue;
+                candidates.Add(e);
+                totalWeight += e.weight;
             }
 
-            if (candidates.Count == 0)
+            if (candidates.Count == 0 || totalWeight <= 0f)
             {
-                candidates = _clips.FindAll(c => c != null);
+                candidates = playable;
+                totalWeight = 0f;
+                foreach (AudioClipEntry e in candidates) totalWeight += e.weight;
             }
-            if (candidates.Count == 0) return null;
 
-            AudioClip chosen = candidates[Random.Range(0, candidates.Count)];
+            float r = Random.value * totalWeight;
+            AudioClip chosen = candidates[candidates.Count - 1].clip;
+            foreach (AudioClipEntry e in candidates)
+            {
+                r -= e.weight;
+                if (r <= 0f) { chosen = e.clip; break; }
+            }
 
             _history.Add(chosen);
             while (_history.Count > avoid) _history.RemoveAt(0);
