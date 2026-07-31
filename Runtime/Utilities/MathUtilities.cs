@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace MagicUtilities
@@ -7,22 +8,21 @@ namespace MagicUtilities
     public static class MathUtilities
     {
         // Returns one of the values based on its weight
-        public static int PickWeighted(int[] values, float[] weights)
+        // Configuration picked = PickWeighted(_configs, c => c.spawnWeight);
+        public static T PickWeighted<T>(IList<T> items, System.Func<T, float> weight)
         {
             float total = 0f;
-            for (int i = 0; i < weights.Length; i++)
-                total += weights[i];
-
+            for (int i = 0; i < items.Count; i++) total += weight(items[i]);
+        
             float r = Random.value * total;
             float acc = 0f;
-
-            for (int i = 0; i < values.Length; i++)
+        
+            for (int i = 0; i < items.Count; i++)
             {
-                acc += weights[i];
-                if (r <= acc) return values[i];
+                acc += weight(items[i]);
+                if (r <= acc) return items[i];
             }
-
-            return values[values.Length - 1];
+            return items[items.Count - 1];
         }
 
         // Exponential price curve: base * (1 + mult)^level
