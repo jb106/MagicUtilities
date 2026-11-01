@@ -43,6 +43,16 @@ AudioManager.Instance.PlaySound(new AudioDataPlayer(myAudioData, transform.posit
 
 ---
 
+### 🌐 Netcode (optional)
+
+Drop-in components for **Netcode for GameObjects 2.x**: host, join (locally or online with Multiplayer Services), spawn players and sync simple objects without writing network code. Only compiled when NGO is installed.
+
+`NetSession`, `NetSessionUI`, `NetPlayerSpawner`, `NetOwnerOnly`, `NetToggle`, `NetSingleUser`.
+
+Setup and details: [NETCODE.md](NETCODE.md).
+
+---
+
 ## 📦 Installing
 
 Use **Package Manager > Add package from Git URL**:
